@@ -14,13 +14,10 @@ def run_gemini(prompt):
         # Assuming the CLI takes the prompt as a command-line argument or via stdin.
         # Example: geminicli prompt "<prompt>"
 
-        # We use a placeholder here for the actual CLI invocation,
-        # but it should be replaced with the exact command for the user's setup.
-        # For safety in this environment if the tool isn't installed, we'll try to execute it,
-        # and fallback gracefully if it's not found.
-
+        # We use the actual CLI invocation based on the provided help docs.
+        # We use --yolo to automatically accept actions and --prompt for headless mode.
         result = subprocess.run(
-            ["geminicli", "prompt", prompt],
+            ["gemini", "--yolo", "--prompt", prompt],
             capture_output=True,
             text=True,
             check=True
@@ -28,7 +25,7 @@ def run_gemini(prompt):
         print(result.stdout)
 
     except FileNotFoundError:
-        print("[Gemini Wrap Error] 'geminicli' command not found. Please ensure it is installed and in your PATH.")
+        print("[Gemini Wrap Error] 'gemini' command not found. Please ensure it is installed and in your PATH.")
         # Fallback for demonstration/simulation if the user runs this without the tool installed
         print(f"[Simulated Output for Prompt]: {prompt}")
     except subprocess.CalledProcessError as e:
