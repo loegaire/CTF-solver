@@ -15,8 +15,13 @@ def run_copilot(prompt):
         # We use the actual CLI invocation based on the provided help docs.
         # We use --yolo to enable all permissions (allow-all-tools, paths, urls)
         # and --prompt for non-interactive execution.
+        cmd = ["copilot", "--yolo", "--prompt", prompt]
+        copilot_model = os.getenv("COPILOT_MODEL")
+        if copilot_model:
+            cmd.extend(["--model", copilot_model])
+
         result = subprocess.run(
-            ["copilot", "--yolo", "--prompt", prompt],
+            cmd,
             capture_output=True,
             text=True,
             check=True

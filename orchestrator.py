@@ -57,7 +57,7 @@ def worker_monitor(workspace_dir):
         time.sleep(2) # Check every 2 seconds
 
 
-def start_orchestrator(workspace_dir, category):
+def start_orchestrator(workspace_dir, category, gemini_model=None, copilot_model=None):
     """
     The main entry point. Initializes the workspace, starts the daemon thread,
     and then spawns the Lead Agent in the foreground.
@@ -71,6 +71,12 @@ def start_orchestrator(workspace_dir, category):
     print(f"[Orchestrator] Initialized Swarm Task DB in {workspace_dir}.")
 
     # 2. Start the Daemon Watcher
+    # Pass models through environment variables
+    if gemini_model:
+        os.environ["GEMINI_MODEL"] = gemini_model
+    if copilot_model:
+        os.environ["COPILOT_MODEL"] = copilot_model
+
     daemon = threading.Thread(target=worker_monitor, args=(workspace_dir,), daemon=True)
     daemon.start()
 
@@ -108,8 +114,10 @@ if __name__ == "__main__":
     parser.add_argument("command", choices=["solve"], help="Command to run")
     parser.add_argument("--dir", required=True, help="Path to the challenge workspace directory")
     parser.add_argument("--category", required=True, help="Category of the challenge (e.g., pwn, web)")
+    parser.add_argument("--gemini-model", help="Model to use for Gemini Lead Agent")
+    parser.add_argument("--copilot-model", help="Model to use for Copilot Worker Agent")
 
     args = parser.parse_args()
 
     if args.command == "solve":
-        start_orchestrator(args.dir, args.category)
+        start_orchestrator(args.dir, args.category, args.gemini_model, args.copilot_model)

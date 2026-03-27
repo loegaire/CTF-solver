@@ -34,6 +34,11 @@ Point the orchestrator at the workspace and provide the challenge category (e.g.
 python orchestrator.py solve --dir ./workspace/pwn_buffer_overflow --category pwn
 ```
 
+You can optionally specify which models the agents should use:
+```bash
+python orchestrator.py solve --dir ./workspace/pwn_buffer_overflow --category pwn --gemini-model gemini-2.0-flash --copilot-model claude-3.5-sonnet
+```
+
 ### 3. Watch the Swarm
 The Orchestrator will:
 1. Initialize a task database in the workspace.

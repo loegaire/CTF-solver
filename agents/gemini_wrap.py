@@ -16,8 +16,13 @@ def run_gemini(prompt):
 
         # We use the actual CLI invocation based on the provided help docs.
         # We use --yolo to automatically accept actions and --prompt for headless mode.
+        cmd = ["gemini", "--yolo", "--prompt", prompt]
+        gemini_model = os.getenv("GEMINI_MODEL")
+        if gemini_model:
+            cmd.extend(["--model", gemini_model])
+
         result = subprocess.run(
-            ["gemini", "--yolo", "--prompt", prompt],
+            cmd,
             capture_output=True,
             text=True,
             check=True
