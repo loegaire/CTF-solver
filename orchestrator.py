@@ -5,9 +5,10 @@ import sqlite3
 import time
 import threading
 
-from ctf_task import get_pending_tasks, set_in_progress, init_db
+from ctf_task import get_pending_tasks, set_in_progress, init_db, fail_task
 
 DB_FILE = "task_db.sqlite"
+active_processes = []
 
 def worker_monitor(workspace_dir):
     """
@@ -24,31 +25,47 @@ def worker_monitor(workspace_dir):
                 # Lock the task so we don't spawn multiple workers for it
                 set_in_progress(task_id, workspace_dir)
 
-                # Spawn a worker agent (e.g., Copilot for quick tasks) in a separate thread/process
-                print(f"[Orchestrator Daemon] Spawning Copilot Worker for Task #{task_id}...")
+                # Alternate between Copilot and Gemini based on task_id
+                if int(task_id) % 2 == 0:
+                    default_script = "agents/gemini_wrap.py"
+                    agent_name = "Gemini"
+                else:
+                    default_script = "agents/copilot_wrap.py"
+                    agent_name = "Copilot"
+
+                # Spawn a worker agent in a separate thread/process
+                print(f"[Orchestrator Daemon] Spawning {agent_name} Worker for Task #{task_id}...")
 
                 prompt = (
                     f"You are a Worker Agent. Your task is: {description}\n"
                     f"You have full access to {workspace_dir}.\n"
+                    f"WARNING: DO NOT HALLUCINATE FLAGS! You must only report the flag if you have definitive proof (e.g., exact string output from the target).\n"
                     f"When finished, execute: `python ctf_task.py --workspace {workspace_dir} complete {task_id} '[your results]'`"
                 )
 
                 # Spawns a dedicated thread for the worker so we can safely use subprocess.run
                 # and keep the log file open until the process terminates.
-                def run_worker_process(task_id, workspace_dir, prompt):
+                def run_worker_process(task_id, workspace_dir, prompt, worker_script_path):
                     log_file_path = os.path.join(workspace_dir, f"worker_{task_id}.log")
                     # For testing/simulation, we check if an environment variable is set
                     # to use the mock worker, otherwise we use the real wrapper.
-                    worker_script = os.getenv("WORKER_SCRIPT", "agents/copilot_wrap.py")
+                    worker_script = os.getenv("WORKER_SCRIPT", worker_script_path)
 
                     with open(log_file_path, "w") as log_file:
-                        subprocess.run(
+                        proc = subprocess.Popen(
                             ["python", worker_script, prompt],
                             stdout=log_file,
                             stderr=log_file
                         )
+                        active_processes.append(proc)
+                        proc.wait()
+                        
+                        # If worker crashed or exited with error code before running `complete`
+                        if proc.returncode != 0:
+                            print(f"[Orchestrator Daemon] Worker for Task #{task_id} exited with code {proc.returncode}. Marking as FAILED.")
+                            fail_task(task_id, f"Worker process crashed with exit code {proc.returncode}. It may have been rate-limited.", workspace_dir)
 
-                worker_thread = threading.Thread(target=run_worker_process, args=(task_id, workspace_dir, prompt), daemon=True)
+                worker_thread = threading.Thread(target=run_worker_process, args=(task_id, workspace_dir, prompt, default_script), daemon=True)
                 worker_thread.start()
         except sqlite3.OperationalError:
             # Database might be locked briefly, try again later
@@ -80,18 +97,24 @@ def start_orchestrator(workspace_dir, category):
         f"You are the Lead Investigator for a {category} CTF.\n"
         f"Workspace: {workspace_dir}\n"
         f"Files available: {', '.join(files)}\n"
-        f"Goal: Find the flag. You can use native shell commands.\n\n"
-        f"SWARM CAPABILITY: If you encounter parallelizable tasks (like fuzzing or deep analysis), "
-        f"do NOT do them yourself. Instead, use the task manager: `python ctf_task.py --workspace {workspace_dir} create '[task description]'`.\n"
-        f"The orchestrator will spawn a worker. You can check status with `status` and read results with `read <id>`."
+        f"Goal: Coordinate the swarm to find the flag.\n\n"
+        f"WARNING: DO NOT HALLUCINATE FLAGS! You must only report the flag if you have definitive proof (e.g., exact string output from the target).\n\n"
+        f"STRICT DELEGATION REQUIRED: You must delegate all tedious, general, or time-consuming analysis (like 'check for buffer overflows', 'brute force keys', 'fuzz endpoints', 'decompile binary') to worker tasks. "
+        f"You should focus ONLY on coordinating results and constructing the final exploit logic (e.g. drafting ROP chains, crafting payloads) based on the workers' findings. "
+        f"If a worker fails or finds partial info, create another task. "
+        f"You CANNOT run native shell commands for slow analysis; you must use `python ctf_task.py ...`.\n\n"
+        f"Use `python ctf_task.py --workspace {workspace_dir} create '[task description]'` to delegate work.\n"
+        f"Check status with `status` and read results with `read <id>`."
     )
 
     # 4. Spawn the Lead Agent (Foreground process)
-    print("\n[Orchestrator] Spawning Lead Agent (Gemini)...")
+    print("\n[Orchestrator] Spawning Lead Agent (Copilot)...")
     try:
         # In a real scenario, this is an interactive session that stays open.
         # For the mock, we just call the script which simulates the interaction.
-        subprocess.run(["python", "agents/gemini_wrap.py", lead_prompt])
+        proc = subprocess.Popen(["python", "agents/copilot_wrap.py", lead_prompt])
+        active_processes.append(proc)
+        proc.wait()
 
         # If the orchestrator is run in test mode (no interactive prompt), keep it alive
         # so the daemon thread can process tasks created externally
@@ -100,7 +123,12 @@ def start_orchestrator(workspace_dir, category):
             while True:
                 time.sleep(1)
     except KeyboardInterrupt:
-        print("\n[Orchestrator] Shutting down.")
+        print("\n[Orchestrator] Shutting down. Cleaning up processes...")
+        for p in active_processes:
+            try:
+                p.terminate()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

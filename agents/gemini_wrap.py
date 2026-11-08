@@ -17,12 +17,9 @@ def run_gemini(prompt):
         # We use the actual CLI invocation based on the provided help docs.
         # We use --yolo to automatically accept actions and --prompt for headless mode.
         result = subprocess.run(
-            ["gemini", "--yolo", "--prompt", prompt],
-            capture_output=True,
-            text=True,
+            ["gemini", prompt],
             check=True
         )
-        print(result.stdout)
 
     except FileNotFoundError:
         print("[Gemini Wrap Error] 'gemini' command not found. Please ensure it is installed and in your PATH.")

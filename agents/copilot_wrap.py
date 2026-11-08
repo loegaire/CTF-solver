@@ -16,12 +16,9 @@ def run_copilot(prompt):
         # We use --yolo to enable all permissions (allow-all-tools, paths, urls)
         # and --prompt for non-interactive execution.
         result = subprocess.run(
-            ["copilot", "--yolo", "--prompt", prompt],
-            capture_output=True,
-            text=True,
+            ["copilot", "--yolo", "-p", prompt],
             check=True
         )
-        print(result.stdout)
 
     except FileNotFoundError:
         print("[Copilot Wrap Error] 'copilot' command not found. Please ensure it is installed and in your PATH.")

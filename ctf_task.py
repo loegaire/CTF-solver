@@ -71,6 +71,15 @@ def complete_task(task_id, result, workspace_dir="."):
     conn.close()
     print(f"Task #{task_id} marked as COMPLETED.")
 
+def fail_task(task_id, error_msg, workspace_dir="."):
+    db_path = os.path.join(workspace_dir, DB_FILE)
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE tasks SET status = 'FAILED', result = ? WHERE id = ?", (error_msg, task_id))
+    conn.commit()
+    conn.close()
+    print(f"Task #{task_id} marked as FAILED.")
+
 def read_task(task_id, workspace_dir="."):
     db_path = os.path.join(workspace_dir, DB_FILE)
     conn = sqlite3.connect(db_path)
@@ -135,6 +144,11 @@ if __name__ == "__main__":
     parser_read = subparsers.add_parser("read", help="Read the full description and results of a task")
     parser_read.add_argument("task_id", type=int, help="ID of the task to read")
 
+    # Fail Task (Internal)
+    parser_fail = subparsers.add_parser("fail", help="Mark a task as failed with an error message")
+    parser_fail.add_argument("task_id", type=int, help="ID of the task to fail")
+    parser_fail.add_argument("error", help="The error message")
+
     # Internal Init
     parser_init = subparsers.add_parser("init", help="Initialize the database (used by Orchestrator)")
 
@@ -153,6 +167,8 @@ if __name__ == "__main__":
         get_status(args.workspace)
     elif args.command == "complete":
         complete_task(args.task_id, args.result, args.workspace)
+    elif args.command == "fail":
+        fail_task(args.task_id, args.error, args.workspace)
     elif args.command == "read":
         read_task(args.task_id, args.workspace)
     else:
